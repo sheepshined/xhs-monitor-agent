@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小红书内容监控 Agent</title>
+<style>
+  :root {
+    --bg: #0f1117; --panel: #171a23; --border: #262b3a;
+    --text: #e6e9f0; --muted: #8b93a7; --accent: #ff4d6d;
+    --ok: #34d399; --warn: #fbbf24; --danger: #f87171;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 14px; padding: 20px;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+  }
+  header h1 { font-size: 18px; }
+  header .tag {
+    background: rgba(255,77,109,.15); color: var(--accent);
+    padding: 2px 10px; border-radius: 12px; font-size: 12px;
+  }
+  #refresh {
+    margin-left: auto; background: var(--panel); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 16px; cursor: pointer;
+  }
+  #refresh:hover { border-color: var(--accent); }
+
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px;
+  }
+  .card .num { font-size: 26px; font-weight: 600; }
+  .card .label { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+  section {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; margin-bottom: 20px;
+  }
+  section h2 { font-size: 15px; margin-bottom: 12px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { color: var(--muted); font-weight: 500; text-align: left; padding: 8px; font-size: 12px; }
+  td { padding: 8px; border-top: 1px solid var(--border); vertical-align: top; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+
+  .pill { padding: 1px 8px; border-radius: 10px; font-size: 12px; }
+  .pill.positive { background: rgba(52,211,153,.15); color: var(--ok); }
+  .pill.negative { background: rgba(248,113,113,.15); color: var(--danger); }
+  .pill.neutral  { background: rgba(139,147,167,.15); color: var(--muted); }
+  .pill.alert   { background: rgba(255,77,109,.2); color: var(--accent); }
+  .pill.level-0 { background: rgba(52,211,153,.15); color: var(--ok); }
+  .pill.level-1, .pill.level-2 { background: rgba(251,191,36,.15); color: var(--warn); }
+  .pill.level-3, .pill.level-4, .pill.level-5 { background: rgba(248,113,113,.15); color: var(--danger); }
+
+  .btn {
+    background: transparent; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 5px; padding: 3px 10px; cursor: pointer; font-size: 12px;
+  }
+  .btn:hover { color: var(--text); border-color: var(--accent); }
+  .btn.run { color: var(--accent); border-color: var(--accent); }
+
+  #risk-events td { font-size: 12px; color: var(--muted); }
+  #risk-events .detail { color: var(--text); }
+  a { color: #7aa2f7; text-decoration: none; }
+  .empty { color: var(--muted); text-align: center; padding: 24px; }
+  #toast {
+    position: fixed; bottom: 24px; right: 24px; background: var(--panel);
+    border: 1px solid var(--accent); border-radius: 8px; padding: 10px 18px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>小红书内容监控 Agent</h1>
+  <span class="tag" id="uptime">v1.0</span>
+  <button id="refresh">刷新</button>
+</header>
+
+<div class="grid">
+  <div class="card"><div class="num" id="st-notes">-</div><div class="label">累计笔记</div></div>
+  <div class="card"><div class="num" id="st-alerts" style="color:var(--accent)">-</div><div class="label">告警笔记</div></div>
+  <div class="card"><div class="num" id="st-tasks">-</div><div class="label">启用任务</div></div>
+  <div class="card"><div class="num" id="st-accounts">-</div><div class="label">可用账号</div></div>
+</div>
+
+<section>
+  <h2>账号与风控状态</h2>
+  <table>
+    <thead><tr>
+      <th>账号</th><th>状态</th><th>风险等级</th><th>冷却至</th>
+      <th>小时配额(搜/详)</th><th>日配额(搜/详)</th><th>间隔倍率</th><th>操作</th>
+    </tr></thead>
+    <tbody id="accounts"></tbody>
+  </table>
+</section>
+
+<section>
+  <h2>监控任务</h2>
+  <table>
+    <thead><tr>
+      <th>#</th><th>名称</th><th>关键词</th><th>周期(分)</th>
+      <th>单次上限</th><th>详情</th><th>上次</th><th>下次</th><th>操作</th>
+    </tr></thead>
+    <tbody id="tasks"></tbody>
+  </table>
+</section>
+
+<section>
+  <h2>最新采集</h2>
+  <table>
+    <thead><tr>
+      <th>标题</th><th>作者</th><th>相关度</th><th>分类</th><th>情感</th>
+      <th>命中规则</th><th>时间</th>
+    </tr></thead>
+    <tbody id="notes"></tbody>
+  </table>
+</section>
+
+<section>
+  <h2>风控事件审计</h2>
+  <table id="risk-events">
+    <thead><tr><th>时间</th><th>账号</th><th>事件</th><th>详情</th></tr></thead>
+    <tbody id="events"></tbody>
+  </table>
+</section>
+
+<div id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', 2500);
+}
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+function pill(text, cls) { return `<span class="pill ${cls}">${esc(text)}</span>`; }
+
+async function refresh() {
+  try {
+    const st = await api('/api/status');
+    $('st-notes').textContent = st.notes.total;
+    $('st-alerts').textContent = st.notes.alerts;
+    $('st-tasks').textContent = `${st.tasks.enabled}/${st.tasks.total}`;
+    const active = st.accounts.filter(a => a.status === 'active').length;
+    $('st-accounts').textContent = `${active}/${st.accounts.length}`;
+
+    $('accounts').innerHTML = st.accounts.map(a => `
+      <tr>
+        <td>${esc(a.account)}</td>
+        <td>${pill(a.status, a.status === 'active' ? 'positive' :
+                    a.status === 'cooldown' ? 'neutral' : 'negative')}</td>
+        <td>${pill('L' + a.level, 'level-' + a.level)}</td>
+        <td>${a.cooldown_until ? esc(a.cooldown_until.slice(5, 16)) : '-'}</td>
+        <td>${a.hour_search} / ${a.hour_detail}</td>
+        <td>${a.day_search} / ${a.day_detail}</td>
+        <td>×${a.delay_multiplier}</td>
+        <td><button class="btn" onclick="resetAcc('${esc(a.account)}')">重置</button></td>
+      </tr>`).join('') || '<tr><td colspan="8" class="empty">暂无账号, 运行 python main.py init</td></tr>';
+    $('uptime').textContent = st.time;
+
+    const tasks = await api('/api/tasks');
+    $('tasks').innerHTML = tasks.map(t => `
+      <tr>
+        <td>${t.id}</td><td>${esc(t.name)}</td><td>${esc(t.keyword)}</td>
+        <td>${t.interval_minutes}</td><td>${t.max_notes_per_run}</td>
+        <td>${t.fetch_detail ? '✓' : '-'}</td>
+        <td>${t.last_run_at ? esc(t.last_run_at.slice(5, 16)) : '-'}</td>
+        <td>${t.next_run_at ? esc(t.next_run_at.slice(5, 16)) : '-'}</td>
+        <td>
+          <button class="btn run" onclick="runTask(${t.id})">运行</button>
+          <button class="btn" onclick="toggleTask(${t.id})">${t.enabled ? '停用' : '启用'}</button>
+        </td>
+      </tr>`).join('') || '<tr><td colspan="9" class="empty">暂无任务</td></tr>';
+
+    const notes = await api('/api/notes?limit=50');
+    $('notes').innerHTML = notes.map(n => {
+      const a = n.analysis;
+      return `
+      <tr>
+        <td style="max-width:340px">
+          ${a?.is_alert ? pill('告警', 'alert') + ' ' : ''}
+          <a href="${esc(n.url)}" target="_blank">${esc(n.title || '(无标题)')}</a>
+        </td>
+        <td>${esc(n.user)}</td>
+        <td>${a ? a.relevance.toFixed(0) : '-'}</td>
+        <td>${a ? esc(a.category) : '-'}</td>
+        <td>${a ? pill(a.sentiment, a.sentiment) : '-'}</td>
+        <td>${a && a.matched_rules ? esc(a.matched_rules.join(',')) : '-'}</td>
+        <td style="color:var(--muted)">${esc(n.collected_at.slice(5, 16))}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="7" class="empty">暂无数据</td></tr>';
+
+    const events = await api('/api/risk/events?limit=30');
+    $('events').innerHTML = events.map(e => `
+      <tr>
+        <td>${esc(e.created_at.slice(5, 16))}</td>
+        <td>${esc(e.account)}</td>
+        <td>${pill(e.type, e.type.includes('cooldown') || e.type.includes('disabled')
+                    ? 'negative' : e.type.includes('ok') || e.type.includes('recover')
+                    ? 'positive' : 'neutral')}</td>
+        <td class="detail">${esc(e.detail)}</td>
+      </tr>`).join('') || '<tr><td colspan="4" class="empty">暂无事件</td></tr>';
+  } catch (e) {
+    toast('加载失败: ' + e.message);
+  }
+}
+
+async function runTask(id) {
+  toast('任务运行中, 浏览器将执行拟人采集...');
+  try {
+    const r = await api(`/api/run/${id}`, { method: 'POST' });
+    toast(r.summary || '完成');
+  } catch (e) { toast('失败: ' + e.message); }
+  refresh();
+}
+async function toggleTask(id) {
+  await api(`/api/tasks/${id}/toggle`, { method: 'POST' });
+  refresh();
+}
+async function resetAcc(name) {
+  await api(`/api/accounts/${name}/reset`, { method: 'POST' });
+  toast(`账号 ${name} 已重置`);
+  refresh();
+}
+
+$('refresh').onclick = refresh;
+refresh();
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>

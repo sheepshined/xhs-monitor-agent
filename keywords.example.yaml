@@ -1,0 +1,47 @@
+# 内容识别规则 — 呼吸防护/劳保电商场景示例
+# 复制为 keywords.yaml 使用; L1 规则引擎(零成本), LLM 开启后自动语义增强
+base_keywords: [防尘口罩, 防毒面具, 半面罩, 全面罩, KN95, N95, 口罩, 呼吸防护, 劳保, 滤棉, 滤毒盒, 防护面罩, 劳保用品]
+
+rules:
+  - name: negative_complaint      # 负面舆情 — 最高优先级告警
+    include: [过敏, 假货, 投诉, 维权, 举报, 退货, 退款, 智商税, 踩雷, 翻车, 别买, 避雷, 差评, 勒耳朵, 闷不透气, 异味, 失效]
+    category: complaint
+    sentiment: negative
+    alert: true
+    weight: 20
+
+  - name: positive_praise         # 正面口碑
+    include: [好用, 回购, 推荐, 透气, 舒服, 舒适, 密封性好, 性价比, 良心, 种草, 安利, 大牌, 放心]
+    category: brand_mention
+    sentiment: positive
+    weight: 10
+
+  - name: competitor_3m           # 竞品: 3M(行业第一, 重点盯)
+    include: [3M, 3m]
+    category: competitor
+    weight: 15
+
+  - name: competitor_honeywell    # 竞品: 霍尼韦尔
+    include: [霍尼韦尔, Honeywell]
+    category: competitor
+    weight: 15
+
+  - name: competitor_domestic     # 竞品: 国产及外资主流品牌
+    include: [代尔塔, 海固, 保为康, 思创, 梅思安, MSA, 百安达, 优唯斯, uvex, 振德, 稳健]
+    category: competitor
+    weight: 12
+
+  - name: industry_policy         # 行业/政策信号
+    include: [新国标, GB2626, 强制标准, 国标, 集采, 招标, 采购, 安全生产, 职业病, 尘肺]
+    category: industry_trend
+    weight: 15
+
+  - name: shopping_intent         # 购买意向 — 电商运营高价值线索
+    include: [求推荐, 哪个牌子, 怎么选, 有没有好用的, 蹲一个, 求链接, 求测评, 帮忙选]
+    category: shopping_intent
+    weight: 15
+
+  - name: scenario_usage          # 使用场景(内容选题方向)
+    include: [打磨, 喷漆, 电焊, 切割, 装修, 粉尘, 车间, 农药, 喷洒, 甲醛]
+    category: scenario
+    weight: 8

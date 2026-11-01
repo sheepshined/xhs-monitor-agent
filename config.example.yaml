@@ -1,0 +1,67 @@
+# 小红书内容监控 Agent 配置模板
+# 复制本文件为 config.yaml 后填写; 敏感项(API Key/SMTP密码)一律走环境变量
+db_url: sqlite:///./data/monitor.db
+profiles_dir: ./data/profiles
+keywords_file: ./keywords.yaml
+
+accounts:
+  - name: acc1
+    proxy: ""              # http://user:pass@host:port; 一号一出口, 长期固定
+    viewport: [1280, 800]  # 每账号固定窗口, 避免画像漂移
+  # - name: acc2            # 号池: 多账号时监督层可自动换号
+  #   proxy: ""
+  #   viewport: [1280, 800]
+
+behavior:                  # 拟人行为(详见 app/behavior.py)
+  request_interval_min: 90
+  request_interval_max: 180
+  page_load_timeout: 60
+  scroll_rounds_min: 2
+  scroll_rounds_max: 5
+  dwell_ms_per_char: 18
+  dwell_ms_max: 12000
+
+risk:                      # 风控引擎(详见 app/risk.py)
+  hourly_search_quota: 8
+  daily_search_quota: 50
+  hourly_detail_quota: 25
+  daily_detail_quota: 150
+  cooldown_ladder_minutes: [0, 5, 30, 120, 720, 1440]
+  recover_success_needed: 3
+  min_request_gap_seconds: 75
+  min_detail_gap_seconds: 6
+
+scheduler:
+  tick_seconds: 30
+  start_jitter_max_seconds: 180
+  active_hours_start: 7
+  active_hours_end: 23
+  interval_jitter_ratio: 0.15
+
+supervisor:                # 监督决策层: LLM 兜底策略(平时静默, 异常时激活)
+  enabled: true
+  min_activation_interval_minutes: 5
+  risk_event_window_minutes: 30
+  risk_event_threshold: 3
+  task_failure_threshold: 3
+  max_interval_minutes: 1440
+
+llm:                       # OpenAI 兼容接口(DeepSeek/Qwen/GLM)
+  enabled: true
+  base_url: https://api.deepseek.com/v1
+  model: deepseek-chat
+  api_key_env: XHS_LLM_API_KEY   # 密钥从环境变量读, 不落盘
+
+notify:
+  feishu_webhooks: []      # 飞书自定义机器人 webhook
+  dingtalk_webhooks: []
+  wecom_webhooks: []
+  generic_webhooks: []
+  smtp_host: ""
+  smtp_to: []
+  digest_throttle_minutes: 10
+
+web:
+  enabled: true
+  host: 127.0.0.1
+  port: 8787
